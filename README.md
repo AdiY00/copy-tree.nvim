@@ -58,7 +58,7 @@ A Neovim plugin that helps you capture your project's structure and file content
   ```
   
 
-### Examle Output
+### Example Output
 
 `:CopyTree max_file_rows=5`
 
