@@ -13,7 +13,9 @@ M.config = {
 
     ignore_dirs = {
         "^%.", -- Hidden directories starting with a dot
-        "node_modules","__pycache__","undo",
+        "node_modules",
+        "__pycache__",
+        "undo",
     },
 }
 
@@ -62,6 +64,7 @@ local function read_file(file_path, config)
 end
 
 local function traverse_directory(dir, depth, tree, output, config)
+    -- Check for infinite depth handling
     if config.max_depth and depth > config.max_depth then
         return 0
     end
@@ -136,17 +139,36 @@ local function traverse_directory(dir, depth, tree, output, config)
 end
 
 function M.copy_tree(args)
-    -- Parse extra arguments to override configurations
-    local arg_str = args.args
     local config_overrides = {}
+    local root_dir_arg = nil
 
-    for _, arg in ipairs(vim.split(arg_str, "%s+")) do
-        local key_value = vim.split(arg, "=", { plain = true })
-        local key = key_value[1]
-        local value = key_value[2]
-        if key and value then
-            config_overrides[key] = value
+    if type(args) == "table" and args.args then
+        -- Called via command-line with arguments
+        local arg_str = args.args
+        for _, arg in ipairs(vim.split(arg_str, "%s+")) do
+            if arg:find("=") then
+                local key_value = vim.split(arg, "=", { plain = true })
+                local key = key_value[1]
+                local value = key_value[2]
+                if key and value then
+                    config_overrides[key] = value
+                end
+            else
+                -- If arg doesn't contain '=', assume it's the root_dir
+                root_dir_arg = arg
+            end
         end
+    elseif type(args) == "table" then
+        -- Called programmatically with configurations
+        config_overrides = args
+    elseif type(args) == "string" then
+        -- If a single string is passed, assume it's the root_dir
+        root_dir_arg = args
+    end
+
+    -- Set root_dir if provided
+    if root_dir_arg then
+        config_overrides.root_dir = root_dir_arg
     end
 
     -- Create a local config with overrides
@@ -158,6 +180,13 @@ function M.copy_tree(args)
                 config[key] = tonumber(value)
             elseif type(config[key]) == "boolean" then
                 config[key] = (value == "true")
+            elseif type(config[key]) == "table" then
+                -- For list-type configurations like valid_extensions or ignore_dirs
+                if type(value) == "string" then
+                    config[key] = vim.split(value, ",")
+                elseif type(value) == "table" then
+                    config[key] = value
+                end
             else
                 config[key] = value
             end
