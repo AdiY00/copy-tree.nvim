@@ -146,16 +146,18 @@ function M.copy_tree(args)
         -- Called via command-line with arguments
         local arg_str = args.args
         for _, arg in ipairs(vim.split(arg_str, "%s+")) do
-            if arg:find("=") then
-                local key_value = vim.split(arg, "=", { plain = true })
-                local key = key_value[1]
-                local value = key_value[2]
-                if key and value then
-                    config_overrides[key] = value
+            if arg ~= "" then  -- Skip empty arguments
+                if arg:find("=") then
+                    local key_value = vim.split(arg, "=", { plain = true })
+                    local key = key_value[1]
+                    local value = key_value[2]
+                    if key and value then
+                        config_overrides[key] = value
+                    end
+                else
+                    -- If arg doesn't contain '=', assume it's the root_dir
+                    root_dir_arg = arg
                 end
-            else
-                -- If arg doesn't contain '=', assume it's the root_dir
-                root_dir_arg = arg
             end
         end
     elseif type(args) == "table" then
@@ -167,14 +169,14 @@ function M.copy_tree(args)
     end
 
     -- Set root_dir if provided
-    if root_dir_arg then
+    if root_dir_arg and root_dir_arg ~= "" then
         config_overrides.root_dir = root_dir_arg
     end
 
     -- Create a local config with overrides
     local config = vim.tbl_deep_extend("force", {}, M.config)
     for key, value in pairs(config_overrides) do
-        if config[key] ~= nil then
+        if key ~= "" and config[key] ~= nil then
             -- Convert value to the correct type
             if type(config[key]) == "number" then
                 config[key] = tonumber(value)
@@ -190,7 +192,7 @@ function M.copy_tree(args)
             else
                 config[key] = value
             end
-        else
+        elseif key ~= "" then
             print("Warning: Invalid configuration key: " .. key)
         end
     end
