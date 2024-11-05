@@ -2,7 +2,7 @@ local M = {}
 
 M.config = {
     root_dir = nil, -- Starts from working directory unless specified otherwise
-    max_file_rows = 2, -- Limit number of rows displayed per file
+    max_file_rows = 1000, -- Limit number of rows displayed per file
     max_files_per_directory = 30, -- Limit number of files shown per directory
     max_depth = nil, -- Maximum directory traversal depth (nil for infinite)
     max_characters = 1000000, -- Threshold for character estimation
