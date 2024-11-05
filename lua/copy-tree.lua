@@ -2,7 +2,7 @@ local M = {}
 
 M.config = {
     root_dir = nil, -- Starts from working directory unless specified otherwise
-    max_file_rows = 1000, -- Limit number of rows displayed per file
+    max_file_rows = 2000, -- Limit number of rows displayed per file
     max_files_per_directory = 30, -- Limit number of files shown per directory
     max_depth = nil, -- Maximum directory traversal depth (nil for infinite)
     max_characters = 1000000, -- Threshold for character estimation
@@ -12,10 +12,8 @@ M.config = {
     },
 
     ignore_dirs = {
-        "^%.", -- Hidden directories
-        "node_modules",
-        "__pycache__",
-        "undo",
+        "^%.", -- Hidden directories starting with a dot
+        "node_modules","__pycache__","undo",
     },
 }
 
@@ -23,17 +21,18 @@ function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 end
 
-local function should_ignore(path)
-    for _, pattern in ipairs(M.config.ignore_dirs) do
-        if path:match(pattern) then
+local function should_ignore(path, config)
+    local basename = vim.fn.fnamemodify(path, ':t')
+    for _, pattern in ipairs(config.ignore_dirs) do
+        if basename:match(pattern) then
             return true
         end
     end
     return false
 end
 
-local function is_valid_file(path)
-    for _, ext in ipairs(M.config.valid_extensions) do
+local function is_valid_file(path, config)
+    for _, ext in ipairs(config.valid_extensions) do
         if path:match(ext) then
             return true
         end
@@ -41,7 +40,7 @@ local function is_valid_file(path)
     return false
 end
 
-local function read_file(file_path)
+local function read_file(file_path, config)
     local file = io.open(file_path, "r")
     if not file then
         return nil
@@ -51,7 +50,7 @@ local function read_file(file_path)
     local line_count = 0
     for line in file:lines() do
         line_count = line_count + 1
-        if line_count > M.config.max_file_rows then
+        if line_count > config.max_file_rows then
             content[#content + 1] = "\n[Content truncated - file exceeds max rows]"
             break
         end
@@ -62,13 +61,8 @@ local function read_file(file_path)
     return table.concat(content, "\n")
 end
 
-local function traverse_directory(dir, depth, tree, output)
-    -- Check for infinite depth handling
-    if M.config.max_depth and depth > M.config.max_depth then
-        return 0
-    end
-
-    if should_ignore(dir) then
+local function traverse_directory(dir, depth, tree, output, config)
+    if config.max_depth and depth > config.max_depth then
         return 0
     end
 
@@ -99,48 +93,88 @@ local function traverse_directory(dir, depth, tree, output)
             .. (entry.type == "directory" and "├── " or "└── ")
             .. entry.name
 
-        if entries_shown >= M.config.max_files_per_directory then
+        if entries_shown >= config.max_files_per_directory then
             tree[#tree + 1] = string.rep("    ", depth)
                 .. "["
-                .. (#entries - M.config.max_files_per_directory)
+                .. (#entries - config.max_files_per_directory)
                 .. " more files...]"
             break
+        end
+
+        if should_ignore(path, config) then
+            if entry.type == "directory" then
+                tree[#tree + 1] = display_name .. " [Contents hidden]"
+            end
+            entries_shown = entries_shown + 1
+            goto continue
         end
 
         tree[#tree + 1] = display_name
 
         if entry.type == "directory" then
-            total_size = total_size + traverse_directory(path, depth + 1, tree, output)
-        elseif is_valid_file(path) then
+            total_size = total_size + traverse_directory(path, depth + 1, tree, output, config)
+        elseif is_valid_file(path, config) then
             local stat = vim.loop.fs_stat(path)
             if stat and stat.size then
                 total_size = total_size + stat.size
             end
 
-            local relative_path = path:sub(#M.config.root_dir + 2)
+            local relative_path = path:sub(#config.root_dir + 2)
             output[#output + 1] = "File: " .. relative_path .. "\nContents:\n```"
 
-            local content = read_file(path)
+            local content = read_file(path, config)
             output[#output + 1] = content or "[Error reading file]"
             output[#output + 1] = "```\n-------------------\n"
         end
 
         entries_shown = entries_shown + 1
+
+        ::continue::
     end
 
     return total_size
 end
 
 function M.copy_tree(args)
-    M.config.root_dir = args.args ~= "" and args.args or M.config.root_dir or vim.fn.getcwd()
-    local root_dir = M.config.root_dir
+    -- Parse extra arguments to override configurations
+    local arg_str = args.args
+    local config_overrides = {}
+
+    for _, arg in ipairs(vim.split(arg_str, "%s+")) do
+        local key_value = vim.split(arg, "=", { plain = true })
+        local key = key_value[1]
+        local value = key_value[2]
+        if key and value then
+            config_overrides[key] = value
+        end
+    end
+
+    -- Create a local config with overrides
+    local config = vim.tbl_deep_extend("force", {}, M.config)
+    for key, value in pairs(config_overrides) do
+        if config[key] ~= nil then
+            -- Convert value to the correct type
+            if type(config[key]) == "number" then
+                config[key] = tonumber(value)
+            elseif type(config[key]) == "boolean" then
+                config[key] = (value == "true")
+            else
+                config[key] = value
+            end
+        else
+            print("Warning: Invalid configuration key: " .. key)
+        end
+    end
+
+    config.root_dir = config.root_dir or vim.fn.getcwd()
+    local root_dir = config.root_dir
 
     local tree = { "Project Structure for '" .. root_dir .. "':\n" }
     local output = {}
 
-    local estimated_size = traverse_directory(root_dir, 1, tree, output)
+    local estimated_size = traverse_directory(root_dir, 1, tree, output, config)
 
-    if estimated_size > M.config.max_characters then
+    if estimated_size > config.max_characters then
         local confirm = vim.fn.confirm(
             string.format(
                 "The output is estimated to be %d characters, which might take a while. Are you sure you want to continue?",
@@ -158,6 +192,6 @@ function M.copy_tree(args)
     print(string.format("Project structure and contents from '%s' yanked into \"+", root_dir))
 end
 
-vim.api.nvim_create_user_command("CopyTree", M.copy_tree, { nargs = "?" })
+vim.api.nvim_create_user_command("CopyTree", M.copy_tree, { nargs = "*" })
 
 return M
