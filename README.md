@@ -10,12 +10,12 @@ A Neovim plugin that helps you capture your project's structure and file content
 
 ## 🚀 Installation
 
-### Using [lazy.nvim](https://github.com/folke/lazy.nvim):
+### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
   "AdiY00/copy-tree.nvim",
-  cmd = "CopyTree",
+  cmd = { "CopyTree", "SaveTree" },
   config = function()
     require("copy-tree").setup()
   end,
@@ -42,6 +42,21 @@ A Neovim plugin that helps you capture your project's structure and file content
   :CopyTree /path/to/project max_depth=2 max_files_per_directory=10
   ```
   
+- **Save Command**:
+  
+  ```vim
+  :SaveTree /path/to/output.txt
+  ```
+  
+  Saves the project structure and contents to the specified file.
+  
+- **Save Command with Override Configurations**:
+  
+  ```vim
+  :SaveTree /path/to/output.txt max_depth=2 max_files_per_directory=10
+  ```
+  
+  Saves the project structure and contents to the specified file with custom settings.
 
 ### Keymapping
 
@@ -56,7 +71,6 @@ A Neovim plugin that helps you capture your project's structure and file content
   -- Alternatively,
   -- set("n", "<leader>ct", "<cmd>CopyTree<cr>", { desc = "Copy project structure from current directory" }),
   ```
-  
 
 ### Example Output
 
@@ -136,7 +150,7 @@ require("copy-tree").setup {
 }
 ```
 
-### Keymap with Configuration Override:
+### Keymap with Configuration Override
 
 ```lua
 local set = vim.keymap.set
@@ -165,7 +179,6 @@ When interacting with LLMs, providing context is crucial. `copy-tree.nvim` impro
   
 - **📈 Scalable for Large Projects**: Manages large projects with configurable limits to focus on essential information.
   
-
 ## 🚧 Future Plans
 
 `copy-tree.nvim` is a work in progress, with additional features planned for future updates:

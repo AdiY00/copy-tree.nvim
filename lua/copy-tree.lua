@@ -138,7 +138,8 @@ local function traverse_directory(dir, depth, tree, output, config)
     return total_size
 end
 
-function M.copy_tree(args)
+function M.generate_tree_output(args)
+    -- Process arguments and build config
     local config_overrides = {}
     local root_dir_arg = nil
 
@@ -205,6 +206,12 @@ function M.copy_tree(args)
 
     local estimated_size = traverse_directory(root_dir, 1, tree, output, config)
 
+    return estimated_size, tree, output, config
+end
+
+function M.copy_tree(args)
+    local estimated_size, tree, output, config = M.generate_tree_output(args)
+
     if estimated_size > config.max_characters then
         local confirm = vim.fn.confirm(
             string.format(
@@ -220,9 +227,65 @@ function M.copy_tree(args)
     end
 
     vim.fn.setreg("+", table.concat(tree, "\n") .. "\n\nFile Contents:\n" .. table.concat(output, "\n"))
-    print(string.format("Project structure and contents from '%s' yanked into \"+", root_dir))
+    print(string.format("Project structure and contents from '%s' yanked into \"+", config.root_dir))
+end
+
+function M.save_tree(args)
+    local file_path = nil
+    if type(args) == "table" and args.args then
+        local arg_str = args.args
+        local args_list = vim.split(arg_str, "%s+")
+        if #args_list == 0 then
+            print("Error: No file path provided.")
+            return
+        end
+        file_path = args_list[1]
+        -- Remove the file path from args_list
+        table.remove(args_list, 1)
+        args.args = table.concat(args_list, " ")
+    elseif type(args) == "string" then
+        file_path = args
+    else
+        print("Error: Invalid arguments.")
+        return
+    end
+
+    if not file_path or file_path == "" then
+        print("Error: No file path provided.")
+        return
+    end
+
+    local estimated_size, tree, output, config = M.generate_tree_output(args)
+
+    if estimated_size > config.max_characters then
+        local confirm = vim.fn.confirm(
+            string.format(
+                "The output is estimated to be %d characters, which might take a while. Are you sure you want to continue?",
+                estimated_size
+            ),
+            "&Yes\n&No",
+            2
+        )
+        if confirm ~= 1 then
+            return
+        end
+    end
+
+    local full_output = table.concat(tree, "\n") .. "\n\nFile Contents:\n" .. table.concat(output, "\n")
+
+    local file = io.open(file_path, "w")
+    if not file then
+        print("Error: Could not open file '" .. file_path .. "' for writing.")
+        return
+    end
+
+    file:write(full_output)
+    file:close()
+
+    print(string.format("Project structure and contents from '%s' saved to '%s'", config.root_dir, file_path))
 end
 
 vim.api.nvim_create_user_command("CopyTree", M.copy_tree, { nargs = "*" })
+vim.api.nvim_create_user_command("SaveTree", M.save_tree, { nargs = "*" })
 
 return M
