@@ -133,6 +133,8 @@ M.config = {
     "%.f90$", "%.mat$", "%.v$", "%.vhd$", "%.tex$", "%.scss$", "%.sass$",
     "%.coffee$",
   },
+  additional_extensions = {},    -- Add extra extensions to valid_extensions
+  exclude_extensions = {},       -- Remove extensions from valid_extensions
   ignore_dirs = { "^%.", "node_modules", "__pycache__", "undo" },
 }
 ```
@@ -146,6 +148,8 @@ require("copy-tree").setup {
   max_file_rows = 1000,
   max_files_per_directory = 20,
   max_depth = 5,
+  additional_extensions = { "%.tf$", },
+  exclude_extensions = { "%.coffee$", }
   -- other settings
 }
 ```

@@ -11,16 +11,42 @@ M.config = {
         "%.lua$","%.rs$","%.py$","%.js$","%.jsx$","%.ts$","%.md$","%.txt$","%.json$","%.html$","%.css$","%.c$","%.cs$","%.cpp$","%.java$","%.php$","%.rb$","%.go$","%.swift$","%.kt$","%.dart$","%.m$","%.r$","%.pl$","%.sh$","%.scala$","%.tsv$","%.vue$","%.yaml$","%.xml$","%.sql$","%.hs$","%.jl$","%.groovy$","%.erl$","%.elm$","%.f90$","%.mat$","%.v$","%.vhd$","%.tex$","%.scss$","%.sass$","%.coffee$",
     },
 
+    additional_extensions = {}, -- List of extensions to add to the valid_extensions list
+    exclude_extensions = {},    -- List of extensions to remove from the valid_extensions list
+
     ignore_dirs = {
         "^%.", -- Hidden directories starting with a dot
-        "node_modules",
-        "__pycache__",
-        "undo",
+        "node_modules", "__pycache__", "undo",
     },
 }
 
 function M.setup(opts)
-    M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+    local new_config = vim.tbl_deep_extend("force", M.config, opts or {})
+
+    -- Add additional extensions
+    if new_config.additional_extensions then
+        vim.list_extend(new_config.valid_extensions, new_config.additional_extensions)
+    end
+
+    -- Remove excluded extensions
+    if new_config.exclude_extensions then
+        local final_extensions = {}
+        for _, ext in ipairs(new_config.valid_extensions) do
+            local should_keep = true
+            for _, excluded in ipairs(new_config.exclude_extensions) do
+                if ext == excluded then
+                    should_keep = false
+                    break
+                end
+            end
+            if should_keep then
+                table.insert(final_extensions, ext)
+            end
+        end
+        new_config.valid_extensions = final_extensions
+    end
+
+    M.config = new_config
 end
 
 local function should_ignore(path, config)
